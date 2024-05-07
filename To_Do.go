@@ -57,17 +57,17 @@ func main() {
 	users := userFilestor.Load()
 	userstorage = append(userstorage, users...)
 
-	runcommand(userFilestor, *command)
+	runcommand(userFilestor, *command, &taskService)
 	for {
 		scanner := bufio.NewScanner(os.Stdin)
 		fmt.Println("please enter another command")
 		scanner.Scan()
 		*command = scanner.Text()
-		runcommand(userFilestor, *command)
+		runcommand(userFilestor, *command, &taskService)
 	}
 }
 
-func runcommand(store contract.UserWriteStore, command string) {
+func runcommand(store contract.UserWriteStore, command string, taskService *task.Service) {
 	if command != "register-user" && command != "exit" && command != "login" && authenticatedUser == nil {
 		login()
 		if authenticatedUser == nil {
@@ -80,7 +80,7 @@ func runcommand(store contract.UserWriteStore, command string) {
 
 	switch command {
 	case "create-task":
-		createTask()
+		createTask(taskService)
 	case "create-category":
 		createCategory()
 	case "register-user":
@@ -92,13 +92,13 @@ func runcommand(store contract.UserWriteStore, command string) {
 	case "login":
 		login()
 	case "list-task":
-		//listTask()
+		listTask(taskService)
 	default:
 		fmt.Println("no-command")
 	}
 
 }
-func createTask() {
+func createTask(taskService *task.Service) {
 	scanner := bufio.NewScanner(os.Stdin)
 	var title, catagory, dodate string
 
@@ -119,6 +119,17 @@ func createTask() {
 	scanner.Scan()
 	dodate = scanner.Text()
 
+	response, err := taskService.Create(task.CreateRequest{
+		Title:               title,
+		DueDate:             dodate,
+		CategoryID:          catagory_id,
+		AuthenticatedUserID: authenticatedUser.ID})
+
+	if err != nil {
+		fmt.Println("error:", err)
+		return
+	}
+	fmt.Println("create task:", response.Task)
 }
 func createCategory() {
 	scanner := bufio.NewScanner(os.Stdin)
@@ -132,7 +143,7 @@ func createCategory() {
 	scanner.Scan()
 	color = scanner.Text()
 
-	category := Category{
+	category := entity.Category{
 		ID:     len(categorystorage) + 1,
 		Title:  title,
 		Color:  color,
@@ -198,6 +209,17 @@ func login() {
 		fmt.Println("email or password incorrect")
 	}
 
+}
+
+func listTask(taskService *task.Service) {
+	userTasks, err := taskService.List(task.ListRequest{UserID: authenticatedUser.ID})
+	if err != nil {
+		fmt.Println("error", err)
+
+		return
+	}
+
+	fmt.Println("user tasks", userTasks.Tasks)
 }
 
 func hashThePassword(password string) string {
